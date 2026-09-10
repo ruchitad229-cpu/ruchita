@@ -1,0 +1,7 @@
+{
+  "name": "Google Merchandise Store",
+  "description": "Mobile shopping experience optimization prototype for Google Merchandise Store featuring streamlined product discovery, 2-column mobile grid, sticky CTAs, and frictionless 3-step guest checkout.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
