@@ -83,3 +83,10 @@ export interface AnalyticsEvent {
   name: string;
   details?: Record<string, string | number | boolean>;
 }
+
+declare global {
+  interface Window {
+    dataLayer?: any[];
+    gtag?: (...args: any[]) => void;
+  }
+}

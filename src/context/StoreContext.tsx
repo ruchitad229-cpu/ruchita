@@ -60,6 +60,8 @@ interface StoreContextType {
   trackEvent: (category: AnalyticsEvent['category'], name: string, details?: Record<string, any>) => void;
 }
 
+export const GA_MEASUREMENT_ID = 'G-V37ZCJVR81';
+
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_SHIPPING: ShippingDetails = {
@@ -130,6 +132,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       details
     };
     setAnalyticsEvents(prev => [newEvt, ...prev].slice(0, 50));
+
+    // Forward interaction & ecommerce events to Google Analytics 4
+    if (typeof window !== 'undefined' && typeof window.gtag === 'function') {
+      const gaEventName = name
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+      window.gtag('event', gaEventName || 'store_event', {
+        event_category: category,
+        send_to: GA_MEASUREMENT_ID,
+        ...details
+      });
+    }
   };
 
   const showNotification = (msg: string) => {
@@ -293,6 +309,102 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       trackEvent('Discovery', 'Category Selected', { category: selectedCategory });
     }
   }, [selectedCategory]);
+
+  // Google Analytics 4 (GA4) Page View Tracking for Single Page Application
+  useEffect(() => {
+    let path = '/';
+    let title = 'Google Merchandise Store — Official Merchandise';
+
+    switch (activeView) {
+      case 'home':
+        path = '/';
+        title = 'Google Merchandise Store — Official Merchandise';
+        break;
+      case 'listing':
+        if (searchQuery && searchQuery.trim()) {
+          path = `/search?q=${encodeURIComponent(searchQuery.trim())}`;
+          title = `Search: "${searchQuery.trim()}" — Google Merchandise Store`;
+        } else if (selectedCategory && selectedCategory !== 'all') {
+          const catSlug = selectedCategory.toLowerCase().replace(/\s+/g, '-');
+          path = `/category/${catSlug}`;
+          title = `${selectedCategory} — Google Merchandise Store`;
+        } else {
+          path = '/products';
+          title = 'All Merchandise — Google Merchandise Store';
+        }
+        break;
+      case 'detail':
+        if (selectedProduct) {
+          path = `/product/${selectedProduct.id}`;
+          title = `${selectedProduct.name} — Google Merchandise Store`;
+        } else {
+          path = '/product';
+          title = 'Product Details — Google Merchandise Store';
+        }
+        break;
+      case 'checkout':
+        path = `/checkout/${checkoutStep}`;
+        title = `Checkout (${checkoutStep.charAt(0).toUpperCase() + checkoutStep.slice(1)}) — Google Merchandise Store`;
+        break;
+      case 'order-confirmation':
+        path = '/order-confirmation';
+        title = 'Order Confirmed — Google Merchandise Store';
+        break;
+      default:
+        path = `/${activeView}`;
+        title = 'Google Merchandise Store';
+    }
+
+    // Synchronize document title
+    document.title = title;
+
+    // Update browser URL state safely for deep linking and history
+    if (typeof window !== 'undefined') {
+      try {
+        window.history.replaceState({ view: activeView, step: checkoutStep }, title, path);
+      } catch {
+        // Safe fallback for restricted iframe environments
+      }
+
+      // Track page_view in Google Analytics 4
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', 'page_view', {
+          page_title: title,
+          page_location: window.location.origin + path,
+          page_path: path,
+          send_to: GA_MEASUREMENT_ID
+        });
+      }
+    }
+  }, [activeView, selectedCategory, selectedProduct?.id, checkoutStep, searchQuery]);
+
+  // Handle browser back/forward buttons with SPA view sync
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state && e.state.view) {
+        setActiveView(e.state.view);
+        if (e.state.step) {
+          setCheckoutStep(e.state.step);
+        }
+      } else if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname;
+        if (pathname === '/' || pathname === '') {
+          setActiveView('home');
+        } else if (pathname.startsWith('/products') || pathname.startsWith('/category/') || pathname.startsWith('/search')) {
+          setActiveView('listing');
+        } else if (pathname.startsWith('/product/')) {
+          setActiveView('detail');
+        } else if (pathname.startsWith('/checkout')) {
+          setActiveView('checkout');
+        } else if (pathname === '/order-confirmation') {
+          setActiveView('order-confirmation');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   return (
     <StoreContext.Provider
